@@ -200,7 +200,6 @@ def base_layout(title: str = "", yaxis_title: str = "", height: int = 340) -> di
             orientation="h", yanchor="bottom", y=1.02,
             xanchor="left", x=0,
             font=dict(size=10), bgcolor="rgba(0,0,0,0)",
-            itemgap=16,
         ),
     )
 
