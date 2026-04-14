@@ -444,25 +444,273 @@ with col_lol:
     fig_lol.update_layout(**lol_layout)
     st.plotly_chart(fig_lol, use_container_width=True)
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION B — Heat-Balance Calibration
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# SECTION B — Heat-Balance Calibration  [Suraj adds here]
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# st.markdown("<hr class='divider'>", unsafe_allow_html=True)
-# st.markdown('<p class="section-label">Section B &nbsp;·&nbsp; Heat-Balance Calibration</p>',
-#             unsafe_allow_html=True)
-#
-# → Load Suraj's output CSVs:
-#     dashboard/output/hb_forecast_daily.csv
-#     dashboard/output/iec_forecast_daily.csv
-#
-# → Show:
-#   - IEC ODE oil temp vs Heat-balance oil temp vs Inspection records
-#   - Confidence intervals from calibrated parameters
-#   - Explanation of the ~37 °C gap and what it means
-#
-# ═══════════════════════════════════════════════════════════════════════════════
+import yaml
+
+@st.cache_data
+def load_hb_daily() -> pd.DataFrame:
+    df = pd.read_csv(HERE / "output" / "hb_forecast_daily.csv")
+    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
+    return df
+
+@st.cache_data
+def load_iec_daily() -> pd.DataFrame:
+    df = pd.read_csv(HERE / "output" / "iec_forecast_daily.csv")
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    return df
+
+@st.cache_data
+def load_inspected_values() -> tuple[pd.DataFrame, pd.DataFrame]:
+    with open(HERE / "output" / "inspected_values.yaml", "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    def _to_df(records: list[dict]) -> pd.DataFrame:
+        df = pd.DataFrame(records).copy()
+        df["yymm"] = df["yymm"].astype(int)
+        yy = (df["yymm"] // 100).astype(int)
+        mm = (df["yymm"] % 100).astype(int)
+        df["timestamp_utc"] = pd.to_datetime(
+            {"year": 2000 + yy, "month": mm, "day": 15},
+            utc=True,
+        )
+        df["t_mid"] = (df["t_min"] + df["t_max"]) / 2
+        return df.sort_values("timestamp_utc").reset_index(drop=True)
+
+    oil_df = _to_df(data.get("oil", []))
+    coil_df = _to_df(data.get("coil", []))
+    return oil_df, coil_df
+
+hb_daily = load_hb_daily()
+iec_daily = load_iec_daily()
+oil_inspected, coil_inspected = load_inspected_values()
+x_start = pd.Timestamp("2025-09-01", tz="UTC")
+cal = pd.merge(
+    hb_daily,
+    iec_daily,
+    left_on="timestamp_utc",
+    right_on="timestamp",
+    how="inner",
+).sort_values("timestamp_utc")
+
+st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+st.markdown(
+    '<p class="section-label">Section B &nbsp;·&nbsp; Heat-Balance Calibration</p>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<p class="section-title">Daily Model Comparison</p>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<p class="section-desc">These heat-balance forecasts are calibrated with the inspected monthly temperature values shown on the plots below.</p>',
+    unsafe_allow_html=True,
+)
+
+b1, b2, b3 = st.columns(3)
+
+with b1:
+    st.markdown(f"""
+    <div class="kpi-card" style="--accent:{GREEN}">
+      <p class="kpi-label">HB Peak Oil Temperature</p>
+      <p class="kpi-value">{cal["T_oil_hb"].max():.1f}<span class="kpi-unit">°C</span></p>
+    </div>""", unsafe_allow_html=True)
+
+with b2:
+    st.markdown(f"""
+    <div class="kpi-card" style="--accent:{BLUE}">
+      <p class="kpi-label">IEC Peak Oil Temperature</p>
+      <p class="kpi-value">{cal["T_oil_iec"].max():.1f}<span class="kpi-unit">°C</span></p>
+    </div>""", unsafe_allow_html=True)
+
+with b3:
+    oil_gap = cal["T_oil_hb"] - cal["T_oil_iec"]
+    st.markdown(f"""
+    <div class="kpi-card" style="--accent:{AMBER}">
+      <p class="kpi-label">Mean Oil Temperature Gap</p>
+      <p class="kpi-value">{oil_gap.mean():.1f}<span class="kpi-unit">°C</span></p>
+    </div>""", unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+st.markdown(
+    '<p class="section-desc" style="margin-bottom:0.3rem;">'
+    '<strong>Oil Temperature Comparison</strong></p>',
+    unsafe_allow_html=True,
+)
+
+fig_oil_compare = go.Figure()
+
+fig_oil_compare.add_trace(go.Scatter(
+    x=cal["timestamp_utc"],
+    y=cal["T_oil_iec"],
+    name="IEC oil temperature",
+    line=dict(color=BLUE, width=2.2, dash="dash"),
+    hovertemplate="%{y:.1f} °C<extra>IEC oil</extra>",
+))
+
+fig_oil_compare.add_trace(go.Scatter(
+    x=cal["timestamp_utc"],
+    y=cal["hi68"],
+    mode="lines",
+    line=dict(width=0),
+    hoverinfo="skip",
+    showlegend=False,
+))
+
+fig_oil_compare.add_trace(go.Scatter(
+    x=cal["timestamp_utc"],
+    y=cal["lo68"],
+    mode="lines",
+    line=dict(width=0),
+    fill="tonexty",
+    fillcolor="rgba(26,122,94,0.14)",
+    name="HB 68% interval",
+    hovertemplate="%{y:.1f} °C<extra>HB 68%</extra>",
+))
+
+fig_oil_compare.add_trace(go.Scatter(
+    x=cal["timestamp_utc"],
+    y=cal["T_oil_hb"],
+    name="Heat-balance oil temperature",
+    line=dict(color=GREEN, width=2.5),
+    hovertemplate="%{y:.1f} °C<extra>HB oil</extra>",
+))
+
+# inspected oil values: min-max range + midpoint
+fig_oil_compare.add_trace(go.Scatter(
+    x=oil_inspected["timestamp_utc"],
+    y=oil_inspected["t_mid"],
+    mode="markers",
+    name="Inspected oil values",
+    marker=dict(color=RED, size=8, symbol="diamond"),
+    error_y=dict(
+        type="data",
+        symmetric=False,
+        array=oil_inspected["t_max"] - oil_inspected["t_mid"],
+        arrayminus=oil_inspected["t_mid"] - oil_inspected["t_min"],
+        thickness=1.5,
+        width=6,
+        color=RED,
+    ),
+    hovertemplate=(
+        "Inspected oil<br>"
+        "Min: %{customdata[0]:.1f} °C<br>"
+        "Max: %{customdata[1]:.1f} °C<br>"
+        "Mid: %{y:.1f} °C<extra></extra>"
+    ),
+    customdata=np.c_[oil_inspected["t_min"], oil_inspected["t_max"]],
+))
+
+fig_oil_compare.update_layout(**base_layout(yaxis_title="Oil temperature (°C)", height=340))
+fig_oil_compare.update_xaxes(range=[x_start, cal["timestamp_utc"].max()])
+st.plotly_chart(fig_oil_compare, use_container_width=True)
+
+st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+
+col_hs, col_gap = st.columns(2)
+
+with col_hs:
+    st.markdown(
+        '<p class="section-desc" style="margin-bottom:0.3rem;">'
+        '<strong>Hotspot Temperature Comparison</strong></p>',
+        unsafe_allow_html=True,
+    )
+
+    fig_hs_compare = go.Figure()
+
+    fig_hs_compare.add_trace(go.Scatter(
+        x=cal["timestamp_utc"],
+        y=cal["T_hs_iec"],
+        name="IEC hotspot temperature",
+        line=dict(color=PURPLE, width=2.2, dash="dash"),
+        hovertemplate="%{y:.1f} °C<extra>IEC hotspot</extra>",
+    ))
+
+    fig_hs_compare.add_trace(go.Scatter(
+        x=cal["timestamp_utc"],
+        y=cal["hs_hi68"],
+        mode="lines",
+        line=dict(width=0),
+        hoverinfo="skip",
+        showlegend=False,
+    ))
+
+    fig_hs_compare.add_trace(go.Scatter(
+        x=cal["timestamp_utc"],
+        y=cal["hs_lo68"],
+        mode="lines",
+        line=dict(width=0),
+        fill="tonexty",
+        fillcolor="rgba(124,58,237,0.14)",
+        name="HB 68% interval",
+        hovertemplate="%{y:.1f} °C<extra>HB 68%</extra>",
+    ))
+
+    fig_hs_compare.add_trace(go.Scatter(
+        x=cal["timestamp_utc"],
+        y=cal["T_hs_hb"],
+        name="Heat-balance hotspot temperature",
+        line=dict(color=AMBER, width=2.5),
+        hovertemplate="%{y:.1f} °C<extra>HB hotspot</extra>",
+    ))
+
+    # inspected coil values: min-max range + midpoint
+    fig_hs_compare.add_trace(go.Scatter(
+        x=coil_inspected["timestamp_utc"],
+        y=coil_inspected["t_mid"],
+        mode="markers",
+        name="Inspected coil values",
+        marker=dict(color=RED, size=8, symbol="diamond"),
+        error_y=dict(
+            type="data",
+            symmetric=False,
+            array=coil_inspected["t_max"] - coil_inspected["t_mid"],
+            arrayminus=coil_inspected["t_mid"] - coil_inspected["t_min"],
+            thickness=1.5,
+            width=6,
+            color=RED,
+        ),
+        hovertemplate=(
+            "Inspected coil<br>"
+            "Min: %{customdata[0]:.1f} °C<br>"
+            "Max: %{customdata[1]:.1f} °C<br>"
+            "Mid: %{y:.1f} °C<extra></extra>"
+        ),
+        customdata=np.c_[coil_inspected["t_min"], coil_inspected["t_max"]],
+    ))
+
+    fig_hs_compare.update_layout(**base_layout(yaxis_title="Hotspot temperature (°C)", height=320))
+    fig_hs_compare.update_xaxes(range=[x_start, cal["timestamp_utc"].max()])
+    st.plotly_chart(fig_hs_compare, use_container_width=True)
+
+with col_gap:
+    st.markdown(
+        '<p class="section-desc" style="margin-bottom:0.3rem;">'
+        '<strong>Daily Oil Temperature Gap</strong></p>',
+        unsafe_allow_html=True,
+    )
+
+    fig_gap = go.Figure()
+    fig_gap.add_trace(go.Bar(
+        x=cal["timestamp_utc"],
+        y=cal["T_oil_hb"] - cal["T_oil_iec"],
+        name="HB - IEC",
+        marker=dict(color=RED, opacity=0.75),
+        hovertemplate="%{y:.1f} °C<extra>HB - IEC</extra>",
+    ))
+    fig_gap.add_hline(
+        y=0,
+        line_dash="dot",
+        line_color="#64748B",
+        line_width=1.2,
+    )
+    gap_layout = base_layout(yaxis_title="Temperature gap (°C)", height=320)
+    gap_layout["bargap"] = 0.2
+    fig_gap.update_layout(**gap_layout)
+    st.plotly_chart(fig_gap, use_container_width=True)
 
 
 # ── Footer ────────────────────────────────────────────────────────────────────
@@ -477,6 +725,9 @@ st.markdown(f"""
   Nameplate parameters: 40 MVA · OFAF cooling · Δθ_or = 52 K · Δθ_hr = 26 K. &nbsp;
   Operating hotspot limit: 90 °C (conservative operator setting). &nbsp;
   Insulation ageing expressed as equivalent minutes at the IEC reference temperature of 110 °C.
+<br><br>
+<strong>Calibration Note</strong> &nbsp;·&nbsp;
+A consistent ~36.5 °C gap is observed between modelled and inspected temperatures. Calibration assumes the inspected values correspond to this transformer and adjusts total loss, core loss, and heat capacity accordingly. The largely constant offset suggests a systematic thermal bias — potentially due to operation in a closed or semi-closed enclosure increasing local ambient temperature beyond model assumptions.
   <br><br>
   Built by <strong>Arnob</strong> (Section A) and <strong>Suraj</strong> (Section B) &nbsp;·&nbsp;
   For the Varberg Energi transformer monitoring group &nbsp;·&nbsp; April 2026

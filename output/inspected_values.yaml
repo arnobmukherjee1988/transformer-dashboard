@@ -1,0 +1,30 @@
+# Monthly inspection temperature records.
+# yymm: year-month as integer, e.g. 2311 = November 2023
+# t_max, t_min: recorded temperatures in degrees C
+# Add new records here as inspections arrive — no code changes needed.
+
+oil:
+  - {yymm: 2311, t_max: 56, t_min: 48}
+  - {yymm: 2401, t_max: 42, t_min: 33}
+  - {yymm: 2403, t_max: 43, t_min: 38}
+  - {yymm: 2406, t_max: 60, t_min: 54}
+  - {yymm: 2408, t_max: 62, t_min: 60}
+  - {yymm: 2412, t_max: 54, t_min: 52}
+  - {yymm: 2502, t_max: 59, t_min: 57}
+  - {yymm: 2504, t_max: 61, t_min: 59}
+  - {yymm: 2506, t_max: 59, t_min: 53}
+  - {yymm: 2509, t_max: 59, t_min: 58}
+  - {yymm: 2512, t_max: 58, t_min: 54}
+
+coil:
+  - {yymm: 2311, t_max: 56, t_min: 47}
+  - {yymm: 2401, t_max: 40, t_min: 31}
+  - {yymm: 2503, t_max: 42, t_min: 38}
+  - {yymm: 2406, t_max: 62, t_min: 58}
+  - {yymm: 2408, t_max: 64, t_min: 62}
+  - {yymm: 2412, t_max: 53, t_min: 51}
+  - {yymm: 2502, t_max: 67, t_min: 63}
+  - {yymm: 2504, t_max: 68, t_min: 63}
+  - {yymm: 2506, t_max: 59, t_min: 52}
+  - {yymm: 2509, t_max: 68, t_min: 60}
+  - {yymm: 2512, t_max: 64, t_min: 60}
