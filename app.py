@@ -329,15 +329,17 @@ fig_temp.add_trace(go.Scatter(
 ))
 
 # Safety limit line
-fig_temp.add_hline(
-    y=hotspot_limit, line_dash="dash", line_color=RED, line_width=1.5,
-    annotation_text="Safety limit (90 °C)",
-    annotation_position="top right",
-    annotation_font=dict(color=RED, size=10),
-)
+# fig_temp.add_hline(
+#     y=hotspot_limit, line_dash="dash", line_color=RED, line_width=1.5,
+#     annotation_text="Safety limit (90 °C)",
+#     annotation_position="top right",
+#     annotation_font=dict(color=RED, size=10),
+# )
+
+
 
 fig_temp.update_layout(**base_layout(yaxis_title="Temperature (°C)", height=340))
-fig_temp.update_yaxes(range=[0, 100])
+fig_temp.update_yaxes(range=[35, 50])
 st.plotly_chart(fig_temp, use_container_width=True)
 
 # ── Chart A2: Safety headroom ─────────────────────────────────────────────────
