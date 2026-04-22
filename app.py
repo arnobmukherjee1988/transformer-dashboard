@@ -132,13 +132,13 @@ st.markdown(f"""
 # ── Data loading ──────────────────────────────────────────────────────────────
 HERE = Path(__file__).parent
 
-@st.cache_data
+@st.cache_data(ttl=300)  # Refresh cache every 5 minutes
 def load_dtr() -> pd.DataFrame:
     df = pd.read_csv(HERE / "output" / "dtr_results.csv")
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     return df
 
-@st.cache_data
+@st.cache_data(ttl=300)  # Refresh cache every 5 minutes
 def load_forecast() -> pd.DataFrame:
     df = pd.read_csv(HERE / "output" / "forecast_load.csv")
     df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
@@ -452,19 +452,19 @@ with col_lol:
 
 import yaml
 
-@st.cache_data
+@st.cache_data(ttl=300)  # Refresh cache every 5 minutes
 def load_hb_daily() -> pd.DataFrame:
     df = pd.read_csv(HERE / "output" / "hb_forecast_daily.csv")
     df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
     return df
 
-@st.cache_data
+@st.cache_data(ttl=300)  # Refresh cache every 5 minutes
 def load_iec_daily() -> pd.DataFrame:
     df = pd.read_csv(HERE / "output" / "iec_forecast_daily.csv")
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     return df
 
-@st.cache_data
+@st.cache_data(ttl=300)  # Refresh cache every 5 minutes
 def load_inspected_values() -> tuple[pd.DataFrame, pd.DataFrame]:
     with open(HERE / "output" / "inspected_values.yaml", "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
